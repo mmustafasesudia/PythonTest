@@ -23,7 +23,6 @@ from langchain.llms import OpenAI
 import os
 
 os.environ.get('OPEN_AI_KEY')
-os.environ["OPENAI_API_KEY"] = "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"
 
 # Replace 'your_pdf_url' with the actual URL of the PDF file
 pdf_url = 'https://owll.massey.ac.nz/pdf/sample-book-review.pdf'

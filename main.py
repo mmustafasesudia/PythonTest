@@ -7,6 +7,7 @@ from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
 import io
+import os
 
 os.environ.get('OPEN_AI_KEY')
 

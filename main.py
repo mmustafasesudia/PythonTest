@@ -1,6 +1,4 @@
-# Welcome to Cloud Functions for Firebase for Python!
-# To get started, simply uncomment the below code or create your own.
-# Deploy with `firebase deploy`
+from flask import Flask, jsonify, abort, request
 import requests
 from PyPDF2 import PdfReader
 from langchain.embeddings.openai import OpenAIEmbeddings
@@ -8,46 +6,66 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
-import os
+import io
 
 os.environ.get('OPEN_AI_KEY')
 
-# Replace 'your_pdf_url' with the actual URL of the PDF file
-pdf_url = 'https://owll.massey.ac.nz/pdf/sample-book-review.pdf'
+app = Flask(__name__)
 
-# Download the PDF from the URL
-response = requests.get(pdf_url)
-with open('/Users/muhammadmustafa/Desktop/downloaded_pdf.pdf', 'wb') as pdf_file:
-    pdf_file.write(response.content)
+@app.route('/')
+def process_pdf():
+    try:
+        # Get parameters from query string
+        pdf_url = request.args.get('pdf_url')
+        query = request.args.get('query')
 
-# Read the PDF using PyPDF2
-reader = PdfReader('downloaded_pdf.pdf')
+        if not pdf_url or not query:
+            # If pdf_url or query is missing, return a 400 Bad Request
+            abort(400, "Both 'pdf_url' and 'query' parameters are required.")
 
-# Read data from the file and put them into a variable called raw_text
-raw_text = ''
-for i, page in enumerate(reader.pages):
-    text = page.extract_text()
-    if text:
-        raw_text += text
+        # Download the PDF content from the URL
+        response = requests.get(pdf_url)
+        response.raise_for_status()  # Raise an HTTPError for bad responses
 
-# We need to split the text that we read into smaller chunks
-text_splitter = CharacterTextSplitter(        
-    separator="\n",
-    chunk_size=1000,
-    chunk_overlap=200,
-    length_function=len,
-)
-texts = text_splitter.split_text(raw_text)
+        reader = PdfReader(io.BytesIO(response.content))
 
-# Initialize OpenAI embeddings and FAISS vector store
-embeddings = OpenAIEmbeddings()
-docsearch = FAISS.from_texts(texts, embeddings)
+        # Read data from the file and put them into a variable called raw_text
+        raw_text = ''
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text()
+            if text:
+                raw_text += text
 
-chain = load_qa_chain(OpenAI(), chain_type="stuff")
+        # We need to split the text that we read into smaller chunks
+        text_splitter = CharacterTextSplitter(        
+            separator="\n",
+            chunk_size=1000,
+            chunk_overlap=200,
+            length_function=len,
+        )
+        texts = text_splitter.split_text(raw_text)
 
-# Example question and document similarity search
-query = "who are the authors of the article?"
-docs = docsearch.similarity_search(query)
-chain.run(input_documents=docs, question=query)
+        # Initialize OpenAI embeddings and FAISS vector store
+        embeddings = OpenAIEmbeddings()
+        docsearch = FAISS.from_texts(texts, embeddings)
 
-# You can continue with the rest of your code as before
+        chain = load_qa_chain(OpenAI(), chain_type="stuff")
+
+        # Example question and document similarity search
+        docs = docsearch.similarity_search(query)
+        result = chain.run(input_documents=docs, question=query)
+
+        # Return the result as a JSON response
+        return jsonify({'result': result})
+
+    except requests.exceptions.RequestException as e:
+        # Handle requests-related errors
+        return jsonify({'error': f'Requests error: {str(e)}'}), 500
+
+    except Exception as e:
+        # Handle other unexpected errors
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+if __name__ == '__main__':
+    app.run()
+

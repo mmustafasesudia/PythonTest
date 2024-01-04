@@ -9,7 +9,7 @@ from langchain.llms import OpenAI
 import io
 import os
 
-os.environ.get('OPEN_AI_KEY')
+os.environ.get('OPENAI_API_KEY')
 
 app = Flask(__name__)
 
